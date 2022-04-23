@@ -42,10 +42,11 @@ while robot_set == False:
     else:
         robot_set = True
 
-# Set by the robot's datasheet
-robot_radius = float(input("\nEnter Robot radius\n"))
-
-clearance = robot_radius+robot_clearance
+# Set by the robot's datasheet in millimeters
+robot_r = float(138) #robot physical radius
+robot_t = float(178) #robot trackwidth
+robot_wheelradius = float(33)
+clearance = robot_r+robot_clearance
 
 # Creating objects using half planes and semi-algebraic definitions, all object
 # spaces have their cost set to -1
@@ -178,108 +179,75 @@ def Backtrack(current_node,ClosedList):
         route.append(reverse.pop())
     return route
 
+# Generic Move function for calculating change in displacement, heading, and cost on R/L wheel inputs
+def Move(robot_i,rpm_l,rpm_r):
+    cost = 0
+    t = 0
+    dt = .1
+    xn = robot_i[0]
+    yn = robot_i[1]
+    theta_n = 3.14*(robot_i[2]/180)
+    while t < 1:
+        t += dt
+        dx = (robot_r*.5)*(rpm_l+rpm_r)* math.cos(theta_n) * dt
+        dy = (robot_r*.5)*(rpm_l+rpm_r)* math.cos(theta_n) * dt
+        theta_n += (robot_r/robot_t)*(rpm_r-rpm_l)
+        xn += dx
+        yn += dy
+        cost=cost+ math.sqrt(math.pow((0.5*robot_r * (rpm_l + rpm_r) * math.cos(theta_n) * 
+        dt),2)+math.pow((0.5*robot_r * (rpm_l + rpm_r) * math.sin(theta_n) * dt),2))
+    theta_n = 180 * (theta_n) / 3.14
+    robot_n = [xn,yn,theta_n]
+    return robot_n,cost
+
 ## Node Index operates via format [Euclidean Cost, Current Node, Parent Node, Position/Rot]
-def Move0(CurrentNode):
-    global NODEINDEX
-    global STEPSIZE
-    NODEINDEX = NODEINDEX + 1
-    NewNode = [0,0,0,0]
-    # Parent Node Setting
-    NewNode[2] = CurrentNode[1]
-    # Global Index Setting
-    NewNode[1] = NODEINDEX
-    # Generating New Node Pos
-    new_y = CurrentNode[3][0]+(STEPSIZE*np.sin(CurrentNode[3][2]))
-    new_x = CurrentNode[3][1]+(STEPSIZE*np.cos(CurrentNode[3][2]))
-    # Generating New Cost
-    NewNode[0] = Cost_Calc(new_y,new_x)
-    # Adjusting Position/Orientation
-    NewNode[3] = (new_y,new_x,CurrentNode[3][2])
-    return NewNode
+def Move01(robot):
+    new_robot_stack = Move(robot,0,wheelspeed1)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
 
-def MoveP30(CurrentNode):
-    global NODEINDEX
-    global STEPSIZE
-    NODEINDEX = NODEINDEX + 1
-    NewNode = [0,0,0,0]
-    # Parent Node Setting
-    NewNode[2] = CurrentNode[1]
-    # Global Index Setting
-    NewNode[1] = NODEINDEX
-    # Generating New Node Pos
-    new_y = CurrentNode[3][0]+(STEPSIZE*np.sin(CurrentNode[3][2]+30))
-    new_x = CurrentNode[3][1]+(STEPSIZE*np.cos(CurrentNode[3][2]+30))
-    # Generating New Cost
-    NewNode[0] = Cost_Calc(new_y,new_x)
-    # Adjusting Position
-    if CurrentNode[3][2] < 330:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2]+30)
-    else:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2]-330)
-    return NewNode
+def Move10(robot):
+    new_robot_stack = Move(robot,wheelspeed1,0)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
 
-def MoveP60(CurrentNode):
-    global NODEINDEX
-    global STEPSIZE
-    NODEINDEX = NODEINDEX + 1
-    NewNode = [0,0,0,0]
-    # Parent Node Setting
-    NewNode[2] = CurrentNode[1]
-    # Global Index Setting
-    NewNode[1] = NODEINDEX
-    # Generating New Node Pos
-    new_y = CurrentNode[3][0]+(STEPSIZE*np.sin(CurrentNode[3][2]+60))
-    new_x = CurrentNode[3][1]+(STEPSIZE*np.cos(CurrentNode[3][2]+60))
-    # Generating New Cost
-    NewNode[0] = Cost_Calc(new_y,new_x)
-    # Adjusting Position
-    if CurrentNode[3][2] < 300:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2]+60)
-    else:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2]-300)
-    return NewNode 
+def Move11(robot):
+    new_robot_stack = Move(robot,wheelspeed1,wheelspeed1)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
 
-def MoveN30(CurrentNode):
-    global NODEINDEX
-    global STEPSIZE
-    NODEINDEX = NODEINDEX + 1
-    NewNode = [0,0,0,0]
-    # Parent Node Setting
-    NewNode[2] = CurrentNode[1]
-    # Global Index Setting
-    NewNode[1] = NODEINDEX
-    # Generating New Node Pos
-    new_y = CurrentNode[3][0]+(STEPSIZE*np.sin(CurrentNode[3][2]-30))
-    new_x = CurrentNode[3][1]+(STEPSIZE*np.cos(CurrentNode[3][2]-30))
-    # Generating New Cost
-    NewNode[0] = Cost_Calc(new_y,new_x)
-    # Adjusting Orientation
-    if CurrentNode[3][2] >= 30:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2] - 30)
-    else:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2] + 330)
-    return NewNode
+def Move02(robot):
+    new_robot_stack = Move(robot,0,wheelspeed2)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
 
-def MoveN60(CurrentNode):
-    global NODEINDEX
-    global STEPSIZE
-    NODEINDEX = NODEINDEX + 1
-    NewNode = [0,0,0,0]
-    # Parent Node Setting
-    NewNode[2] = CurrentNode[1]
-    # Global Index Setting
-    NewNode[1] = NODEINDEX
-    # Generating New Node Pos
-    new_y = CurrentNode[3][0]+(STEPSIZE*np.sin(CurrentNode[3][2]-60))
-    new_x = CurrentNode[3][1]+(STEPSIZE*np.cos(CurrentNode[3][2]-60))
-    # Generating New Cost
-    NewNode[0] = Cost_Calc(new_y,new_x)    
-    # Adjusting Orientation
-    if CurrentNode[3][2] >= 60:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2] - 60)
-    else:
-        NewNode[3] = (new_y,new_x,CurrentNode[3][2] + 300)
-    return NewNode
+def Move20(robot):
+    new_robot_stack = Move(robot,wheelspeed2,0)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
+
+def Move22(robot):
+    new_robot_stack = Move(robot,wheelspeed2,wheelspeed2)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
+
+def Move12(robot):
+    new_robot_stack = Move(robot,wheelspeed1,wheelspeed2)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
+
+def Move21(robot):
+    new_robot_stack = Move(robot,wheelspeed2,wheelspeed1)
+    robot = new_robot_stack[0]
+    move_cost = new_robot_stack[1]
+    return robot,move_cost
 
 # Creates window showing obstacle
 flipped_image=cv.flip(image,0)
