@@ -1,6 +1,6 @@
-## ENPM661 Project3
+## ENPM661 Project3 Phase 2
 
-Project demonstrating A* algorithm and visualizing the route using OpenCV
+Project demonstrating A* algorithm and visualizing the route using non-holonomic constraints and Gazebo
 
 ## Dependencies:
 
@@ -14,7 +14,7 @@ Project demonstrating A* algorithm and visualizing the route using OpenCV
 
 * __math__ - matrix math operations
 
-## Instructions:
+## A* proj3_simulation.py Instructions:
 
 1. Run program.
 2. Enter robot radius and clearance around outside of robot
