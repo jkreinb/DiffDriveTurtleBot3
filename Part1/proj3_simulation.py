@@ -34,8 +34,8 @@ while robot_set == False:
         print("\nRobot clearance must be positive value!\n")
         time.sleep(2)
         continue
-    wheelspeed1 = float(input("Enter first wheel RPM setting"))
-    wheelspeed2 = float(input("Enter second wheel RPM setting"))
+    wheelspeed1 = float(input("Enter first wheel RPM setting\n"))
+    wheelspeed2 = float(input("Enter second wheel RPM setting\n"))
     if (wheelspeed1 < 0 or wheelspeed2 < 0):
         print("\nRPM setting must be positive value!\n")
         time.sleep(2)
@@ -43,9 +43,9 @@ while robot_set == False:
         robot_set = True
 
 # Set by the robot's datasheet in millimeters
-robot_r = float(138) #robot physical radius
-robot_t = float(178) #robot trackwidth
-robot_wheelradius = float(33)
+robot_r = float(.138) #robot physical radius
+robot_t = float(.178) #robot trackwidth
+robot_wheelradius = float(.033)
 clearance = robot_r+robot_clearance
 
 # Creating objects using half planes and semi-algebraic definitions, all object
@@ -140,24 +140,11 @@ step_size_set = False
 global STEPSIZE 
 
 # Defining cost calculation function
-
 def Cost_Calc(y,x):
     dist_y = (goal_node[0]-y)
     dist_x = (goal_node[1]-x)
     dist = ((dist_y**2) + (dist_x**2))**.5
     return dist
-
-# Step size setting loop
-while step_size_set == False:
-    print("\nPlease enter desired step size \n")
-    print("-------------------------------------------------------\n")
-    STEPSIZE= float(input("Enter desired step size, must be between 1-10 \n"))
-    if (STEPSIZE < 1) or (STEPSIZE > 10):
-        print("\nStep size must be a value between 1-10\n")
-        time.sleep(2)
-        continue
-    else:
-        step_size_set = True
 
 # Finds a node_index within a list
 def Find_Node(list,node_index):
@@ -167,10 +154,14 @@ def Find_Node(list,node_index):
 
 def Backtrack(current_node,ClosedList):
     goal = current_node
+    print("STARTING GOAL POSITION:", goal)
     reverse = []
+    waitKey(10)
     reverse.append(goal)
+    waitKey(10)
     while reverse[-1][2] > 0:
         parent = Find_Node(ClosedList,reverse[-1][2])
+        print(parent)
         reverse.append(parent)
     route = []
     while reverse:
@@ -179,75 +170,138 @@ def Backtrack(current_node,ClosedList):
         route.append(reverse.pop())
     return route
 
+# List to store all between movements
+
+
 # Generic Move function for calculating change in displacement, heading, and cost on R/L wheel inputs
 def Move(robot_i,rpm_l,rpm_r):
-    cost = 0
+    global NODEINDEX
+    movement_cost = 0
     t = 0
     dt = .1
-    xn = robot_i[0]
-    yn = robot_i[1]
+    i = 0
+    backtrack_adder = []
+    yn = robot_i[0]
+    xn = robot_i[1]
     theta_n = 3.14*(robot_i[2]/180)
+    hit_obstacle = False
     while t < 1:
+        i += 1
         t += dt
-        dx = (robot_r*.5)*(rpm_l+rpm_r)* math.cos(theta_n) * dt
-        dy = (robot_r*.5)*(rpm_l+rpm_r)* math.cos(theta_n) * dt
-        theta_n += (robot_r/robot_t)*(rpm_r-rpm_l)
+        dx = (robot_wheelradius*.5)*(rpm_l+rpm_r)* math.cos(theta_n) * dt
+        dy = (robot_wheelradius*.5)*(rpm_l+rpm_r)* math.sin(theta_n) * dt
+        d_theta = (robot_wheelradius/robot_t)*(rpm_r-rpm_l) * dt
+        theta_n += d_theta
+        if (c2c_node[int(yn+dy),int(xn+dx)] == -1): #If hits an obstacle mid motion, will cancel movement and scrub from record
+            hit_obstacle = True
+            continue
         xn += dx
         yn += dy
-        cost=cost+ math.sqrt(math.pow((0.5*robot_r * (rpm_l + rpm_r) * math.cos(theta_n) * 
+        backtrack_adder.append([yn,xn])
+        UpdateSearched(yn,xn)
+        movement_cost=movement_cost+ math.sqrt(math.pow((0.5*robot_r * (rpm_l + rpm_r) * math.cos(theta_n) * 
         dt),2)+math.pow((0.5*robot_r * (rpm_l + rpm_r) * math.sin(theta_n) * dt),2))
     theta_n = 180 * (theta_n) / 3.14
-    robot_n = [xn,yn,theta_n]
-    return robot_n,cost
+    robot_n = [yn,xn,theta_n]
+    heuristic_cost = Cost_Calc(yn,xn)
+    return robot_n,heuristic_cost, movement_cost, hit_obstacle, backtrack_adder
 
-## Node Index operates via format [Euclidean Cost, Current Node, Parent Node, Position/Rot]
-def Move01(robot):
-    new_robot_stack = Move(robot,0,wheelspeed1)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+## Action sets each function calls the actions, which results in the generic move function being called for each type of movement
+def Move01(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
+    new_robot_stack = Move(robot,0,wheelspeed1) # returns Euclidean cost & robot position/rotation
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move10(robot):
+def Move10(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed1,0)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move11(robot):
+def Move11(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed1,wheelspeed1)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move02(robot):
+def Move02(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,0,wheelspeed2)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move20(robot):
+def Move20(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed2,0)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move22(robot):
+def Move22(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed2,wheelspeed2)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move12(robot):
+def Move12(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed1,wheelspeed2)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
-def Move21(robot):
+def Move21(node):
+    global NODEINDEX
+    new_node = [0,0,0,0]
+    NODEINDEX = NODEINDEX + 1
+    robot = node[3]
     new_robot_stack = Move(robot,wheelspeed2,wheelspeed1)
-    robot = new_robot_stack[0]
-    move_cost = new_robot_stack[1]
-    return robot,move_cost
+    new_robot = new_robot_stack[0] # Robot position/rotation
+    new_c2c = node[4] + new_robot_stack[2]
+    heuristic_cost = new_robot_stack[1]
+    new_node = [heuristic_cost,NODEINDEX,node[1],new_robot,new_c2c,new_robot_stack[4]]
+    return new_node,new_robot_stack[3]
 
 # Creates window showing obstacle
 flipped_image=cv.flip(image,0)
@@ -255,12 +309,20 @@ cv.imshow("actual_image",flipped_image)
 cv.waitKey(10)
 
 # Updates pixels to white in image for searched nodes 
-def UpdateSearched(node):
-    flipped_image[250-int(node[3][0])][int(node[3][1])]= [0,0,255]
+def UpdateSearched(y,x):
+    flipped_image[250-int(y)][int(x)]= [0,0,255]
 
 # Updates pixels to white in image for optimal path 
 def UpdateGoal(node):
     flipped_image[250-int(node[3][0])][int(node[3][1])]= [255,255,255]
+    int_solution = node[5]
+    print(int_solution)
+    waitKey(0)
+    if node[1] == 1:
+        flipped_image[250-int(int_solution[0])][int(int_solution[1])]= [255,255,255]
+    else:
+        for i in range(0,10):
+            flipped_image[250-int(int_solution[int(i)][0])][int(int_solution[int(i)][1])]= [255,255,255]
     
 # Calls cv.imshow to update image, scales image up 4X
 def UpdateImage():
@@ -271,7 +333,7 @@ def UpdateImage():
 # Checks if an input node is inside of a list
 def Check_List(new_node,list):
     for i in range(len(list)):
-        if (np.absolute(list[i][3][0] - new_node[3][0]) <.5) and (np.absolute(list[i][3][1] - new_node[3][1]) <.5) and (list[i][3][2] == new_node[3][2]):
+        if (np.absolute(list[i][3][0] - new_node[3][0]) <.1) and (np.absolute(list[i][3][1] - new_node[3][1]) <.1):
             return True
 
 def Check_Goal(node):
@@ -286,17 +348,13 @@ def Check_Node(new_node,ClosedList,OpenList,c2c_node):
     if c2c_node[newnode_y][newnode_x] != -1 and Check_List(new_node,ClosedList) == None:
         ClosedList.append(new_node)
         if (Check_List(new_node,OpenList) == False or Check_List(new_node,OpenList) == None) and c2c_node[newnode_y][newnode_x]<=np.inf:
-            c2c_node[newnode_y][newnode_x] = new_node[0]
-            UpdateSearched(new_node)
+            c2c_node[newnode_y][newnode_x] = new_node[4]
             hq.heappush(OpenList,new_node)
-            
-def Get_Vector(new_node,current_node):
-    X0 = np.array((current_node[3][0]))
-    Y0= np.array((current_node[3][1]))
-    U0 = np.array((new_node[3][0]-current_node[3][0]))
-    V0 = np.array((new_node[3][1]-current_node[3][1]))
-    node = [X0,Y0,U0,V0]
-    return node
+    elif Check_List(new_node,ClosedList) == True:
+        if (c2c_node[newnode_y][newnode_x] >= new_node[4]):
+            c2c_node[newnode_y][newnode_x] = new_node[4]
+            OpenList.append(new_node)
+        
     
 # Algorithm Loop
 
@@ -305,17 +363,16 @@ goal_found = False
 def a_star_algo(start_node,goal_node,c2c_node):
     global NODEINDEX
     goal_found = False
-    
     #Open/Closed List creation
     OpenList = []
     ClosedList = []
-    ClosedList.append(((Cost_Calc(start_node[0],start_node[1])),NODEINDEX,0,start_node))
-    hq.heappush(OpenList,((Cost_Calc(start_node[0],start_node[1])),NODEINDEX,0,start_node))  #Pushes starting node into OpenList
+    ClosedList.append(((Cost_Calc(start_node[0],start_node[1])),NODEINDEX,0,start_node,0,[start_node[0],start_node[1]]))
+    hq.heappush(OpenList,((Cost_Calc(start_node[0],start_node[1])),NODEINDEX,0,start_node,0,[start_node[0],start_node[1]]))  #Pushes starting node into OpenList
     iterator = 0
     cv.waitKey(0)
     while OpenList and goal_found == False:
         current_node = hq.heappop(OpenList)
-        if ((current_node[3][0]-goal_node[0])**2+(current_node[3][1]-goal_node[1])**2)**.5 <= 1.5 and current_node[3][2] == goal_node[2]:
+        if ((current_node[3][0]-goal_node[0])**2+(current_node[3][1]-goal_node[1])**2)**.5 <= 1.5:
             goal_found = True
             print("Goal Found!")
             print(current_node)
@@ -325,30 +382,53 @@ def a_star_algo(start_node,goal_node,c2c_node):
         else:
             iterator = iterator + 1
             
-            new_node0 = Move0(current_node)
-            Check_Node(new_node0,ClosedList,OpenList,c2c_node)
-            if Check_Goal(new_node0) == True: continue
-            N0 = Get_Vector(new_node0,current_node)
+            output01 = Move01(current_node)
+            new_node01 = output01[0]
+            if output01[1] == False:
+                Check_Node(new_node01,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node01) == True: continue
+            
+            output10 = Move10(current_node)
+            new_node10 = output10[0]
+            if output10[1] == False:
+                Check_Node(new_node10,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node10) == True: continue
                                     
-            new_nodeP30 = MoveP30(current_node)
-            Check_Node(new_nodeP30,ClosedList,OpenList,c2c_node)
-            if Check_Goal(new_nodeP30) == True: continue
-            N1 = Get_Vector(new_nodeP30,current_node)
-                                    
-            new_nodeP60 = MoveP60(current_node)
-            Check_Node(new_nodeP60,ClosedList,OpenList,c2c_node)
-            if Check_Goal(new_nodeP60) == True: continue
-            N2 = Get_Vector(new_nodeP60,current_node)
+            output11 = Move11(current_node)
+            new_node11 = output11[0]
+            if output11[1] == False:
+                Check_Node(new_node11,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node11) == True: continue
                                 
-            new_nodeN30 = MoveN30(current_node)
-            Check_Node(new_nodeN30,ClosedList,OpenList,c2c_node)
-            if Check_Goal(new_nodeN30) == True: continue
-            N3 = Get_Vector(new_nodeN30,current_node)
+            output02 = Move02(current_node)
+            new_node02 = output02[0]
+            if output02[1] == False:
+                Check_Node(new_node02,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node02) == True: continue
                                 
-            new_nodeN60 = MoveN60(current_node)
-            Check_Node(new_nodeN60,ClosedList,OpenList,c2c_node)
-            if Check_Goal(new_nodeN60) == True: continue
-            N4 = Get_Vector(new_nodeN60,current_node)
+            output20 = Move20(current_node)
+            new_node20 = output20[0]
+            if output20[1] == False:
+                Check_Node(new_node20,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node20) == True: continue
+            
+            output22 = Move22(current_node)
+            new_node22 = output22[0]
+            if output22[1] == False:
+                Check_Node(new_node22,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node22) == True: continue
+            
+            output12 = Move12(current_node)
+            new_node12 = output12[0]
+            if output12[1] == False:
+                Check_Node(new_node12,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node12) == True: continue
+            
+            output21 = Move21(current_node)
+            new_node21 = output21[0]
+            if output21[1] == False:
+                Check_Node(new_node21,ClosedList,OpenList,c2c_node)
+                if Check_Goal(new_node21) == True: continue
             
             if iterator % 1 == 0: # Only updates image every 100 nodes for speed
                 UpdateImage()
