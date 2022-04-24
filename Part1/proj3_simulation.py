@@ -316,8 +316,6 @@ def UpdateSearched(y,x):
 def UpdateGoal(node):
     flipped_image[250-int(node[3][0])][int(node[3][1])]= [255,255,255]
     int_solution = node[5]
-    print(int_solution)
-    waitKey(0)
     if node[1] == 1:
         flipped_image[250-int(int_solution[0])][int(int_solution[1])]= [255,255,255]
     else:
@@ -375,7 +373,6 @@ def a_star_algo(start_node,goal_node,c2c_node):
         if ((current_node[3][0]-goal_node[0])**2+(current_node[3][1]-goal_node[1])**2)**.5 <= 1.5:
             goal_found = True
             print("Goal Found!")
-            print(current_node)
             goal_route = Backtrack(current_node,ClosedList)
             waitKey(0)
             return goal_route
